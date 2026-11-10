@@ -1,8 +1,4 @@
-
-"""OpenCLIP ViT-B/16 adapter for CAPE-JEPA, with optional Q/V LoRA."""
-
 import math
-
 import open_clip
 import torch
 from torch import nn
@@ -31,8 +27,6 @@ class QVLoRA(nn.Module):
 
 
 class CLIPEncoder(nn.Module):
-    """Return projected CLIP patch tokens and a separate projected CLS feature."""
-
     def __init__(self, pretrained=True, lora=False, rank=8, alpha=8):
         super().__init__()
         clip = open_clip.create_model("ViT-B-16", pretrained="openai" if pretrained else None)
