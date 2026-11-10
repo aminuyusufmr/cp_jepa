@@ -1,9 +1,5 @@
-
-"""Label 1 = bona fide/live; score is live probability. Threshold rule: >= is live."""
-
 import numpy as np
 from sklearn.metrics import roc_auc_score, roc_curve
-
 
 def eer_threshold(labels, scores, weights=None):
     y, s = np.asarray(labels, dtype=int), np.asarray(scores, dtype=float)
@@ -14,7 +10,6 @@ def eer_threshold(labels, scores, weights=None):
     th = np.where(np.isfinite(th), th, np.nextafter(s.max(), np.inf))
     i = int(np.argmin(np.abs(fpr - fnr)))
     return float(th[i]), float((fpr[i] + fnr[i]) * .5 * 100)
-
 
 def metrics(labels, scores, threshold):
     y, s = np.asarray(labels, dtype=int), np.asarray(scores, dtype=float)
@@ -36,7 +31,7 @@ def metrics(labels, scores, threshold):
         "TPR_at_FPR_5pct": float(tpr[fpr <= .05].max() * 100)
     }
 
-
+# Label 1 = bona fide/live; score is live probability. Threshold rule: >= is live.
 def youden(y, s):
     fpr, tpr, thresholds = roc_curve(y, s)
     return float(thresholds[np.argmax(tpr - fpr)])
