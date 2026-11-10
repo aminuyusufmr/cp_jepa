@@ -2,8 +2,6 @@
 """Prepare OCIM face crops using MTCNN."""
 
 import argparse
-import csv
-import json
 from pathlib import Path
 
 import cv2
@@ -12,10 +10,6 @@ from facenet_pytorch import MTCNN
 from PIL import Image
 
 
-FIELDS = [
-    "abs_path", "rel_path", "label", "video_id", "frame_index",
-    "source_frame_index", "dataset", "split", "attack_subtype_raw", "det_score"
-]
 
 
 def crop_face(image, detector, return_score=False):
@@ -49,17 +43,12 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--dataset", choices=["CASIA", "MSU", "OULU", "RA", "SiW-Mv2"], required=True)
-    parser.add_argument("--frames", type=int, default=25)
+    parser.add_argument("--dataset", choices=["CASIA", "MSU", "OULU", "RA"], required=True)
     parser.add_argument("--test", action="store_true")
     args = parser.parse_args()
 
     detector = MTCNN(keep_all=True, device="cpu")
     extensions = {".avi", ".mp4", ".mov", ".mkv"}
-
-    if args.dataset == "SiW-Mv2":
-        process_siw(detector, args.input, args.output, args.test, args.frames)
-        return
 
     for video in sorted(args.input.rglob("*")):
         if not video.is_file() or video.suffix.lower() not in extensions:
