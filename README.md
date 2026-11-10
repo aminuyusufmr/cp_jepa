@@ -47,15 +47,12 @@ Obtain the datasets from their providers. The standard OCIM membership file cont
 
 These counts follow `datasets/ocim_membership.json`. CelebA-Spoof is used as an additional source or transfer target; SiW-Mv2 is used for unseen-attack evaluation. Their splits are defined by the corresponding experiment manifests.
 
-OCIM preprocessing uses MTCNN face cropping, 224 × 224 resizing, and CLIP normalization. The MTCNN implementation is in `datasets/mtcnn_preprocess.py`; OCIM membership and loading are defined in `datasets/ocim_membership.json` and `datasets/dataset.py`. Manifest-based datasets use `datasets/data_loader.py`. CelebA-Spoof uses its bounding-box annotations; SiW-Mv2 uses the same MTCNN preprocessing implementation as OCIM.
+OCIM preprocessing uses MTCNN face cropping, followed by 224 × 224 resizing and CLIP normalization during data loading. The MTCNN implementation is in `datasets/mtcnn_preprocess.py`; OCIM membership and loading are defined in `datasets/ocim_membership.json` and `datasets/dataset.py`. Manifest-based datasets use `datasets/data_loader.py`. 
 
-Prepare OCIM and SiW-Mv2 face crops before training or evaluation. The unified preprocessing script takes an input video directory and a user-selected output directory:
 
-```bash
-python datasets/mtcnn_preprocess.py --input /path/to/SiW-Mv2 --output /path/to/siw_crops --dataset SiW-Mv2 --frames 25
-```
+Prepare OCIM face crops using `datasets/mtcnn_preprocess.py`. Specify `--input` for the raw-video directory, `--output` for the preprocessed dataset directory, and `--dataset` as `CASIA`, `MSU`, `OULU`, or `RA`.
 
-For OCIM, use the same script with `--dataset CASIA`, `MSU`, `OULU`, or `RA` and the corresponding raw-video directory. Specify the preprocessed dataset location using `--data-root` during training and evaluation. The expected directory structure is:
+Specify the preprocessed dataset location using `--data-root` during training and evaluation. The expected directory structure is:
 
 ```text
 /path/to/preprocessed_data/
@@ -79,7 +76,7 @@ For OCIM, use the same script with `--dataset CASIA`, `MSU`, `OULU`, or `RA` and
 
 The train/validation/test video assignments are defined in `datasets/ocim_membership.json`.
 
-CelebA-Spoof manifests are in `datasets/manifests/celeba/`, and the 14 SiW-Mv2 attack-category manifests are in `datasets/manifests/siw/`. Their image paths are relative to the specified data directory. For CelebA-Spoof, set `--celeba-root` to the directory containing `train/` and `test/`; the original images and `_BB.txt` annotations are required. For SiW-Mv2, set `--protocol-root` to the MTCNN output directory containing `full/`. Newly generated crop filenames must match the corresponding manifest entries.
+CelebA-Spoof manifests are in `datasets/manifests/celeba/`, and the 14 SiW-Mv2 attack-category manifests are in `datasets/manifests/siw/`. Their image paths are relative to the specified data directory. For CelebA-Spoof, set `--celeba-root` to the directory containing `train/` and `test/`; the original images and `_BB.txt` annotations are required. For SiW-Mv2, set `--protocol-root` to the directory containing the separately preprocessed face crops under `full/`. The saved image paths must correspond to the entries in the selected protocol manifest.
 
 ## Checkpoints
 
