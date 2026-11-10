@@ -17,20 +17,15 @@ from datasets.dataset import build_dataset
 MEAN = (0.48145466, 0.4578275, 0.40821073)
 STD = (0.26862954, 0.26130258, 0.27577711)
 
-
 def seed_worker(worker_id):
     seed = torch.initial_seed() % (2 ** 32)
     random.seed(seed)
     np.random.seed(seed)
 
-
 def evaluation_transform():
     return transforms.Compose([transforms.Resize((224, 224)), transforms.ToTensor(), transforms.Normalize(MEAN, STD)])
 
-
 class ImageManifest(Dataset):
-    """Image paths, binary labels and original train/val/test assignments."""
-
     def __init__(self, csv_path, split, raw=False, celeba_val_fraction=None, seed=42, celeba=False, data_root=None):
         path = Path(csv_path).resolve()
         self.root = Path(data_root) if data_root is not None else Path(__file__).resolve().parent
@@ -76,7 +71,6 @@ class ImageManifest(Dataset):
 
 
 def celeba_crop(path):
-    """Reproduce the historical CelebA-Spoof OpenCV bounding-box conversion."""
     image = cv2.imread(str(path))
     height, width = image.shape[:2]
     box = path.with_name(path.stem + "_BB.txt")
@@ -94,7 +88,6 @@ def celeba_crop(path):
 
 
 def domain_class_sampler(training, ocim_domains, seed, batch_size, frames_per_video=2):
-    """Historical four-domain, two-class sampling, with an OCIM-video epoch budget."""
     base = training.base
     cells = Counter()
 
@@ -118,8 +111,6 @@ def domain_class_sampler(training, ocim_domains, seed, batch_size, frames_per_vi
 
 
 class PairedViews(Dataset):
-    """Aligned geometry with two photometric views for original CAPE-JEPA losses."""
-
     def __init__(self, base):
         self.base = base
         self.geometry = transforms.Compose([transforms.Resize((224, 224)), transforms.RandomHorizontalFlip()])
@@ -155,8 +146,6 @@ def make_dataset(domains, split, seed, manifests, celeba_val_fraction=None, data
 
 
 class ProtocolManifest(ImageManifest):
-    """One video per sample, with random training and middle evaluation frames."""
-
     def __init__(self, manifest, split, data_root=None):
         super().__init__(manifest, split, raw=split == "train", data_root=data_root)
         videos = {}
