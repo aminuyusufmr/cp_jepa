@@ -1,6 +1,4 @@
 
-"""Sequential CAPE-JEPA initialized from an OCIM CLIP-LoRA PAD model."""
-
 import open_clip
 import torch
 from torch import nn
