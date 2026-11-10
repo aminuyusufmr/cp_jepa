@@ -84,7 +84,7 @@ def celeba_crop(path):
 
     x, y, w, h = (int(float(v)) for v in values[:4])
     x, y = int(x * width / 224), int(y * height / 224)
-    w, h = int(w * width / 224), int(h * width / 224)
+    w, h = int(w * width / 224), int(h * height / 224)
 
     x1, y1 = max(0, x), max(0, y)
     x2, y2 = min(width, x + w), min(height, y + h)
