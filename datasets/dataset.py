@@ -1,8 +1,6 @@
 
 import json
 from pathlib import Path
-
-import numpy as np
 from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
@@ -43,10 +41,9 @@ class FacePADDataset(Dataset):
         return image, label, self.dataset
 
     def load_preprocessed_frame(self, video):
-        frames = sorted(video.parent.glob(video.name + "_[0-9][0-9][0-9][0-9].png"))
-        index = np.random.randint(len(frames)) if self.split == "train" else len(frames) // 2
+        path = video.parent / f"{video.name}_0000.png"
 
-        with Image.open(frames[index]) as image:
+        with Image.open(path) as image:
             return image.convert("RGB")
 
 
