@@ -1,11 +1,9 @@
 
 import copy
 from pathlib import Path
-
 import torch
 from torch import nn
 from torch.nn import functional as F
-
 from .clip_encoder import CLIPEncoder
 from .foundation_models import create_clip_lora
 
