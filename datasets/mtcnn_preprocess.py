@@ -1,6 +1,3 @@
-
-"""Prepare OCIM face crops using MTCNN."""
-
 import argparse
 from pathlib import Path
 
