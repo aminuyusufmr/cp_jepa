@@ -1,12 +1,9 @@
-
 import open_clip
 import torch
 from torch import nn
 from torch.nn.utils import parametrize
-
 from .clip_encoder import QVLoRA
 from .model import PADModel, CAPETrainerModel
-
 
 class SequentialPAD(PADModel):
     def __init__(self, dim=192, rank=8, alpha=8):
