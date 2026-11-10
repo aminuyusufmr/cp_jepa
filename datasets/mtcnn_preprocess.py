@@ -1,5 +1,5 @@
 
-"""Prepare OCIM and SiW-Mv2 face crops using the same MTCNN procedure."""
+"""Prepare OCIM face crops using MTCNN."""
 
 import argparse
 import csv
@@ -43,109 +43,6 @@ def crop_face(image, detector, return_score=False):
     return (face, float(probs[index])) if return_score else face
 
 
-def siw_videos(source):
-    paths = sorted((source / "Live").glob("*"))
-    for category in sorted((source / "Spoof").iterdir()):
-        if category.is_dir():
-            paths.extend(sorted(category.glob("*")))
-
-    return [path for path in paths if path.is_file() and path.suffix.lower() in (".mov", ".avi", ".mp4")]
-
-
-def process_siw_video(video, detector, output, frames):
-    label = int(video.parent.name == "Live")
-    category = "real" if label else video.parent.name
-    cap = cv2.VideoCapture(str(video))
-    total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    rows = []
-
-    if total <= 0:
-        cap.release()
-        return rows
-
-    indices = np.linspace(0, total - 1, frames, dtype=int)
-
-    for number, index in enumerate(indices):
-        face, score = None, None
-        source_index = int(index)
-
-        for position in sorted(range(len(indices)), key=lambda i: (abs(i - number), i)):
-            candidate = int(indices[position])
-            cap.set(cv2.CAP_PROP_POS_FRAMES, candidate)
-            success, frame = cap.read()
-            if not success:
-                continue
-
-            image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-            face, score = crop_face(image, detector, return_score=True)
-            if face is not None:
-                source_index = candidate
-                break
-
-        if face is None:
-            continue
-
-        relative = Path("full") / category / f"{video.stem}_{number:04d}.png"
-        destination = output / relative
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        face.save(destination)
-
-        rows.append({
-            "abs_path": str(destination), "rel_path": str(relative),
-            "label": label, "video_id": f"SiW-Mv2/{category}/{video.stem}",
-            "frame_index": number, "source_frame_index": source_index,
-            "dataset": "SiW-Mv2", "split": "full",
-            "attack_subtype_raw": category if not label else "0",
-            "det_score": score
-        })
-
-    cap.release()
-    return rows
-
-
-def process_siw(detector, source, output, test=False, frames=25):
-    paths = siw_videos(source)
-
-    if test:
-        selected, categories = [], set()
-        for path in paths:
-            category = path.parent.name
-            if category not in categories:
-                selected.append(path)
-                categories.add(category)
-        paths = selected
-
-    output = output / "validation" if test else output
-    output.mkdir(parents=True, exist_ok=True)
-    all_rows, failures = [], []
-    processed = 0
-
-    for number, video in enumerate(paths, 1):
-        print(f"[{number}/{len(paths)}] {video}", flush=True)
-
-        rows = process_siw_video(video, detector, output, frames)
-        all_rows.extend(rows)
-
-        if rows:
-            processed += 1
-        else:
-            failures.append({"video": str(video), "error": "No face crops saved"})
-
-    with (output / "full_manifest.csv").open("w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=FIELDS)
-        writer.writeheader()
-        writer.writerows(all_rows)
-
-    summary = {
-        "mode": "validation" if test else "full",
-        "videos_requested": len(paths), "videos_processed": processed,
-        "frames_written": len(all_rows), "failures": failures,
-        "detector": "facenet_pytorch.MTCNN", "scale": 1.60,
-        "resolution": "original_crop", "frames_per_video": frames
-    }
-
-    (output / "full_summary.json").write_text(json.dumps(summary, indent=2))
-    print(json.dumps(summary, indent=2), flush=True)
 
 
 def main():
