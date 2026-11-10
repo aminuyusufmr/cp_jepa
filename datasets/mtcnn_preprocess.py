@@ -174,7 +174,7 @@ def main():
             cap.release()
             continue
 
-        indices = np.linspace(0, total - 1, args.frames, dtype=int)
+        indices = [total // 2]
 
         if args.dataset == "OULU":
             label = "real" if video.stem.split("_")[-1] == "1" else "attack"
@@ -201,8 +201,21 @@ def main():
         for number, index in enumerate(indices):
             cap.set(cv2.CAP_PROP_POS_FRAMES, int(index))
             success, frame = cap.read()
+
             if not success:
-                continue
+                cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                decoded_frames = []
+
+                while True:
+                    success, current_frame = cap.read()
+                    if not success:
+                        break
+                    decoded_frames.append(current_frame)
+
+                if not decoded_frames:
+                    break
+
+                frame = decoded_frames[len(decoded_frames) // 2]
 
             image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
             face = crop_face(image, detector)
