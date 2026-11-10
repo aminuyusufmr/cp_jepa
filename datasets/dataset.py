@@ -5,9 +5,7 @@ from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
 
-
 CROP_NAMES = {"O": "OULU", "C": "CASIA", "I": "RA", "M": "MSU"}
-
 
 def load_samples(dataset, split, data_root):
     root = Path(data_root)
@@ -49,7 +47,6 @@ class FacePADDataset(Dataset):
 
 def build_dataset(dataset, split, transform=None, data_root=None):
     return FacePADDataset(dataset, split, transform, data_root)
-
 
 def original_dataset(target, split, data_root=None):
     transform = transforms.Compose([
