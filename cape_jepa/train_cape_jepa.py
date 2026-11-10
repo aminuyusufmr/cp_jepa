@@ -54,8 +54,6 @@ def validate(model, loader, device):
 
 
 def select_epoch(history, targets):
-    """Select minimum validation CE, averaging equally across targets."""
-
     def score(row):
         return sum(float(row[f"{target}_loss"]) for target in targets) / len(targets)
 
