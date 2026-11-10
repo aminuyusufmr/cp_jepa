@@ -1,0 +1,217 @@
+
+"""Prepare OCIM and SiW-Mv2 face crops using the same MTCNN procedure."""
+
+import argparse
+import csv
+import json
+from pathlib import Path
+
+import cv2
+import numpy as np
+from facenet_pytorch import MTCNN
+from PIL import Image
+
+
+FIELDS = [
+    "abs_path", "rel_path", "label", "video_id", "frame_index",
+    "source_frame_index", "dataset", "split", "attack_subtype_raw", "det_score"
+]
+
+
+def crop_face(image, detector, return_score=False):
+    w, h = image.size
+    scale = min(1.0, 640 / max(w, h))
+    small = image.resize((round(w * scale), round(h * scale)), Image.Resampling.BOX) if scale < 1 else image
+    boxes, probs = detector.detect(small)
+
+    if boxes is None:
+        return (None, None) if return_score else None
+
+    index = int(np.argmax(probs))
+    x1, y1, x2, y2 = boxes[index] / scale
+    pad_x, pad_y = 0.3 * (x2 - x1), 0.3 * (y2 - y1)
+
+    left = max(0, int(np.floor(x1 - pad_x)))
+    top = max(0, int(np.floor(y1 - pad_y)))
+    right = min(w, int(np.ceil(x2 + pad_x)))
+    bottom = min(h, int(np.ceil(y2 + pad_y)))
+
+    if right <= left or bottom <= top:
+        return (None, None) if return_score else None
+
+    face = image.crop((left, top, right, bottom))
+    return (face, float(probs[index])) if return_score else face
+
+
+def siw_videos(source):
+    paths = sorted((source / "Live").glob("*"))
+    for category in sorted((source / "Spoof").iterdir()):
+        if category.is_dir():
+            paths.extend(sorted(category.glob("*")))
+
+    return [path for path in paths if path.is_file() and path.suffix.lower() in (".mov", ".avi", ".mp4")]
+
+
+def process_siw_video(video, detector, output, frames):
+    label = int(video.parent.name == "Live")
+    category = "real" if label else video.parent.name
+    cap = cv2.VideoCapture(str(video))
+    total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    rows = []
+
+    if total <= 0:
+        cap.release()
+        return rows
+
+    indices = np.linspace(0, total - 1, frames, dtype=int)
+
+    for number, index in enumerate(indices):
+        face, score = None, None
+        source_index = int(index)
+
+        for position in sorted(range(len(indices)), key=lambda i: (abs(i - number), i)):
+            candidate = int(indices[position])
+            cap.set(cv2.CAP_PROP_POS_FRAMES, candidate)
+            success, frame = cap.read()
+            if not success:
+                continue
+
+            image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+            face, score = crop_face(image, detector, return_score=True)
+            if face is not None:
+                source_index = candidate
+                break
+
+        if face is None:
+            continue
+
+        relative = Path("full") / category / f"{video.stem}_{number:04d}.png"
+        destination = output / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        face.save(destination)
+
+        rows.append({
+            "abs_path": str(destination), "rel_path": str(relative),
+            "label": label, "video_id": f"SiW-Mv2/{category}/{video.stem}",
+            "frame_index": number, "source_frame_index": source_index,
+            "dataset": "SiW-Mv2", "split": "full",
+            "attack_subtype_raw": category if not label else "0",
+            "det_score": score
+        })
+
+    cap.release()
+    return rows
+
+
+def process_siw(detector, source, output, test=False, frames=25):
+    paths = siw_videos(source)
+
+    if test:
+        selected, categories = [], set()
+        for path in paths:
+            category = path.parent.name
+            if category not in categories:
+                selected.append(path)
+                categories.add(category)
+        paths = selected
+
+    output = output / "validation" if test else output
+    output.mkdir(parents=True, exist_ok=True)
+    all_rows, failures = [], []
+    processed = 0
+
+    for number, video in enumerate(paths, 1):
+        print(f"[{number}/{len(paths)}] {video}", flush=True)
+
+        rows = process_siw_video(video, detector, output, frames)
+        all_rows.extend(rows)
+
+        if rows:
+            processed += 1
+        else:
+            failures.append({"video": str(video), "error": "No face crops saved"})
+
+    with (output / "full_manifest.csv").open("w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=FIELDS)
+        writer.writeheader()
+        writer.writerows(all_rows)
+
+    summary = {
+        "mode": "validation" if test else "full",
+        "videos_requested": len(paths), "videos_processed": processed,
+        "frames_written": len(all_rows), "failures": failures,
+        "detector": "facenet_pytorch.MTCNN", "scale": 1.60,
+        "resolution": "original_crop", "frames_per_video": frames
+    }
+
+    (output / "full_summary.json").write_text(json.dumps(summary, indent=2))
+    print(json.dumps(summary, indent=2), flush=True)
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--input", type=Path, required=True)
+    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--dataset", choices=["CASIA", "MSU", "OULU", "RA", "SiW-Mv2"], required=True)
+    parser.add_argument("--frames", type=int, default=25)
+    parser.add_argument("--test", action="store_true")
+    args = parser.parse_args()
+
+    detector = MTCNN(keep_all=True, device="cpu")
+    extensions = {".avi", ".mp4", ".mov", ".mkv"}
+
+    if args.dataset == "SiW-Mv2":
+        process_siw(detector, args.input, args.output, args.test, args.frames)
+        return
+
+    for video in sorted(args.input.rglob("*")):
+        if not video.is_file() or video.suffix.lower() not in extensions:
+            continue
+
+        cap = cv2.VideoCapture(str(video))
+        total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        if total <= 0:
+            cap.release()
+            continue
+
+        indices = np.linspace(0, total - 1, args.frames, dtype=int)
+
+        if args.dataset == "OULU":
+            label = "real" if video.stem.split("_")[-1] == "1" else "attack"
+            prefix = f"{video.parent.name}__{video.stem}"
+        elif args.dataset == "CASIA":
+            label = "real" if video.parent.name == "real" else "attack"
+            prefix = f"{video.parent.parent.name}__{video.stem}"
+        elif args.dataset == "RA":
+            parts = video.relative_to(args.input).parts
+            split_name = parts[0]
+            label = "real" if "real" in parts else "attack"
+            subtype = video.parent.name
+            name = video.stem
+            if subtype not in ("real", "attack"):
+                name = f"{subtype}_{name}"
+            prefix = f"{split_name}__{name}"
+        else:
+            label = "real" if video.parent.name == "real" else "attack"
+            prefix = video.stem
+
+        destination = args.output / args.dataset / "full" / label
+        destination.mkdir(parents=True, exist_ok=True)
+
+        for number, index in enumerate(indices):
+            cap.set(cv2.CAP_PROP_POS_FRAMES, int(index))
+            success, frame = cap.read()
+            if not success:
+                continue
+
+            image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+            face = crop_face(image, detector)
+
+            if face is not None:
+                face.save(destination / f"{prefix}_{number:04d}.png")
+
+        cap.release()
+
+
+if __name__ == "__main__":
+    main()
