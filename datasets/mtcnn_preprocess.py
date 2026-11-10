@@ -9,9 +9,6 @@ import numpy as np
 from facenet_pytorch import MTCNN
 from PIL import Image
 
-
-
-
 def crop_face(image, detector, return_score=False):
     w, h = image.size
     scale = min(1.0, 640 / max(w, h))
@@ -35,9 +32,6 @@ def crop_face(image, detector, return_score=False):
 
     face = image.crop((left, top, right, bottom))
     return (face, float(probs[index])) if return_score else face
-
-
-
 
 def main():
     parser = argparse.ArgumentParser()
