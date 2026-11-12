@@ -3,7 +3,7 @@ import argparse
 import csv
 import json
 from pathlib import Path
-
+import numpy as np
 import torch
 
 from cape_jepa.metrics import metrics, youden
@@ -28,8 +28,11 @@ def load_checkpoint(project, path):
     checkpoint = torch.load(path, map_location="cpu", weights_only=True)
 
     if isinstance(checkpoint, dict) and "student" in checkpoint:
-        config = checkpoint.get("config", {})
-        if config.get("stage") == "ce":
+        config = checkpoint.get("args", checkpoint.get("config", {}))
+        if "args" in checkpoint:
+            model = SequentialPAD(config["dim"], config["lora_rank"], config["lora_alpha"])
+            model.load_state_dict(checkpoint["student"])
+        elif config.get("stage") == "ce":
             model = create(pretrained=True)
             model.load_state_dict(checkpoint["student"])
         else:
@@ -68,6 +71,8 @@ def parse_args(argv=None):
         p.add_argument("--workers", type=int, default=2)
         p.add_argument("--output", type=Path, required=True)
         p.add_argument("--test-threshold", action="store_true")
+        p.add_argument("--random-test-frames", action="store_true")
+        p.add_argument("--repeats", type=int, default=5)
     else:
         p.add_argument("--checkpoint", required=True)
         p.add_argument("--output", required=True)
@@ -77,6 +82,44 @@ def parse_args(argv=None):
         p.add_argument("--test-threshold", action="store_true")
 
     return selected.workflow, p.parse_args(remaining)
+
+
+# def evaluate_main(args):
+#     project = Path(__file__).resolve().parent.parent
+#     manifests = {"CelebA": args.celeba_manifest}
+#     fraction = 0.1 if args.target == "CelebA" and args.protocol_manifest is None else None
+
+#     if args.protocol_manifest is not None:
+#         validation = make_protocol_dataset(args.protocol_manifest, "val", data_root=args.protocol_root)
+#         test = make_protocol_dataset(args.protocol_manifest, "test", data_root=args.protocol_root)
+#     else:
+#         validation = make_dataset([args.target], "val", args.seed, manifests,
+#                                   celeba_val_fraction=fraction, data_root=args.data_root, celeba_root=args.celeba_root)
+#         test = make_dataset([args.target], "test", args.seed, manifests, data_root=args.data_root, celeba_root=args.celeba_root)
+
+#     model = load_checkpoint(project, args.checkpoint)
+#     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+#     model.to(device)
+
+#     vy, vs = score_dataset(model, validation, args.batch_size, args.workers, device, "manifest")
+#     ty, ts = score_dataset(model, test, args.batch_size, args.workers, device, "manifest")
+#     threshold = youden(ty, ts) if args.test_threshold else youden(vy, vs)
+#     metric_values = metrics(ty, ts, threshold)
+
+#     result = {
+#         "target": args.target, "checkpoint": str(args.checkpoint), "threshold": threshold,
+#         "threshold_source": "test" if args.test_threshold else "target_validation",
+#         "validation_count": len(vy), "test_count": len(ty),
+#         **{key: metric_values[key] for key in ("APCER", "BPCER", "HTER", "AUC")}
+#     }
+
+#     if fraction is not None:
+#         result["validation_subjects"] = validation.selected_subjects
+#         result["validation_fraction_subjects"] = fraction
+#         result["seed"] = args.seed
+
+#     write_result_csv(args.output, result)
+#     print(json.dumps(result, indent=2))
 
 
 def evaluate_main(args):
@@ -97,6 +140,46 @@ def evaluate_main(args):
     model.to(device)
 
     vy, vs = score_dataset(model, validation, args.batch_size, args.workers, device, "manifest")
+
+    if args.random_test_frames:
+        runs = []
+        for run in range(args.repeats):
+            seed = args.seed + run
+            test = make_protocol_dataset(args.protocol_manifest, "test", data_root=args.protocol_root, random_eval=True, seed=seed)
+            ty, ts = score_dataset(model, test, args.batch_size, args.workers, device, "manifest")
+            threshold = youden(ty, ts) if args.test_threshold else youden(vy, vs)
+            values = metrics(ty, ts, threshold)
+            result = {
+                "run": run + 1, "seed": seed, "target": args.target,
+                "checkpoint": str(args.checkpoint), "threshold": threshold,
+                "threshold_source": "test" if args.test_threshold else "target_validation",
+                "validation_count": len(vy), "test_count": len(ty),
+                **{key: values[key] for key in ("APCER", "BPCER", "HTER", "AUC")}
+            }
+            runs.append(result)
+            print(json.dumps(result, indent=2))
+
+        run_path = Path(args.output).with_suffix(".runs.csv")
+        run_path.parent.mkdir(parents=True, exist_ok=True)
+        with run_path.open("w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=list(runs[0]))
+            writer.writeheader()
+            writer.writerows(runs)
+
+        summary = {
+            "target": args.target, "checkpoint": str(args.checkpoint),
+            "frame_selection": "random", "repeats": args.repeats,
+            "seed": args.seed, "threshold_source": "test" if args.test_threshold else "target_validation"
+        }
+        for key in ("APCER", "BPCER", "HTER", "AUC"):
+            values = [row[key] for row in runs]
+            summary[f"{key}_mean"] = float(np.mean(values))
+            summary[f"{key}_std"] = float(np.std(values, ddof=1))
+
+        write_result_csv(args.output, summary)
+        print(json.dumps(summary, indent=2))
+        return
+
     ty, ts = score_dataset(model, test, args.batch_size, args.workers, device, "manifest")
     threshold = youden(ty, ts) if args.test_threshold else youden(vy, vs)
     metric_values = metrics(ty, ts, threshold)
@@ -115,7 +198,6 @@ def evaluate_main(args):
 
     write_result_csv(args.output, result)
     print(json.dumps(result, indent=2))
-
 
 def evaluate_sequential(args):
     full_checkpoint = Path(args.checkpoint).name in {"checkpoint_best.pt", "checkpoint_last.pt"}
