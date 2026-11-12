@@ -145,8 +145,33 @@ def make_dataset(domains, split, seed, manifests, celeba_val_fraction=None, data
     return PairedViews(base) if split == "train" else base
 
 
+# class ProtocolManifest(ImageManifest):
+#     def __init__(self, manifest, split, data_root=None):
+#         super().__init__(manifest, split, raw=split == "train", data_root=data_root)
+#         videos = {}
+
+#         for row in self.rows:
+#             videos.setdefault(row["video_id"], []).append(row)
+
+#         self.rows = [sorted(frames, key=lambda row: row["path"]) for frames in videos.values()]
+#         self.video_ids = list(videos)
+
+#     def __getitem__(self, index):
+#         frames = self.rows[index]
+#         row = frames[torch.randint(len(frames), (1,)).item()] if self.raw else frames[len(frames) // 2]
+#         path = Path(row["path"])
+
+#         if not path.is_absolute():
+#             path = self.root / path
+
+#         with Image.open(path) as opened:
+#             image = opened.convert("RGB")
+
+#         return (image if self.raw else self.tf(image)), int(row["label"]), "external"
+
+
 class ProtocolManifest(ImageManifest):
-    def __init__(self, manifest, split, data_root=None):
+    def __init__(self, manifest, split, data_root=None, random_eval=False, seed=42):
         super().__init__(manifest, split, raw=split == "train", data_root=data_root)
         videos = {}
 
@@ -155,10 +180,18 @@ class ProtocolManifest(ImageManifest):
 
         self.rows = [sorted(frames, key=lambda row: row["path"]) for frames in videos.values()]
         self.video_ids = list(videos)
+        self.random_eval = random_eval
+        self.seed = seed
 
     def __getitem__(self, index):
         frames = self.rows[index]
-        row = frames[torch.randint(len(frames), (1,)).item()] if self.raw else frames[len(frames) // 2]
+        if self.raw:
+            row = frames[torch.randint(len(frames), (1,)).item()]
+        elif self.random_eval:
+            row = frames[random.Random(self.seed + index).randrange(len(frames))]
+        else:
+            row = frames[len(frames) // 2]
+
         path = Path(row["path"])
 
         if not path.is_absolute():
@@ -170,6 +203,13 @@ class ProtocolManifest(ImageManifest):
         return (image if self.raw else self.tf(image)), int(row["label"]), "external"
 
 
-def make_protocol_dataset(manifest, split, data_root=None):
-    base = ProtocolManifest(manifest, split, data_root=data_root)
+# def make_protocol_dataset(manifest, split, data_root=None):
+#     base = ProtocolManifest(manifest, split, data_root=data_root)
+#     return PairedViews(base) if split == "train" else base
+
+
+
+def make_protocol_dataset(manifest, split, data_root=None, random_eval=False, seed=42):
+    base = ProtocolManifest(manifest, split, data_root=data_root, random_eval=random_eval, seed=seed)
     return PairedViews(base) if split == "train" else base
+
