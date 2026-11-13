@@ -181,7 +181,6 @@ If you find this work useful, please cite our paper:
   year={2026},
   eprint={2611.16534},
   archivePrefix={arXiv},
-  primaryClass={cs.CV},
-  url={https://arxiv.org/abs/2611.16534}
+  primaryClass={cs.CV}
 }
 ```
