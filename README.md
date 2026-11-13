@@ -175,7 +175,7 @@ python -m cape_jepa.evaluate_cape_jepa \
 If you find this work useful, please cite our paper:
 
 ```bibtex
-@misc{yusuf2026contextpredictivelowrankadaptationface,
+@misc{cpjepa2026,
   title={Context-Predictive Low-Rank Adaptation for Face Presentation Attack Detection},
   author={Aminu Yusuf and Shakeel Muhammad Ibrahim and Sulaimon Oyeniyi Adebayo and Muhammad Sohail Ibrahim and Muhammad Shahid Jabbar and Shujaat Khan},
   year={2026},
