@@ -169,4 +169,19 @@ python -m cape_jepa.evaluate_cape_jepa \
 
 ## Citation
 
-Paper: [CP-JEPA preprint (link to be added)](https://example.com/).
+**Paper:** [CP-JEPA (arXiv)](https://arxiv.org/abs/2611.16534)
+
+
+If you find this work useful, please cite our paper:
+
+```bibtex
+@misc{yusuf2026contextpredictivelowrankadaptationface,
+  title={Context-Predictive Low-Rank Adaptation for Face Presentation Attack Detection},
+  author={Aminu Yusuf and Shakeel Muhammad Ibrahim and Sulaimon Oyeniyi Adebayo and Muhammad Sohail Ibrahim and Muhammad Shahid Jabbar and Shujaat Khan},
+  year={2026},
+  eprint={2611.16534},
+  archivePrefix={arXiv},
+  primaryClass={cs.CV},
+  url={https://arxiv.org/abs/2611.16534}
+}
+```
